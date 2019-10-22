@@ -70,9 +70,46 @@ void FeatureTracker::setMask()
         mask = cv::Mat(ROW, COL, CV_8UC1, 255);
     }
 
+}
+
+
+void FeatureTracker::rejectWithF()
+{
+    if(forw_pts.size() > 15)
+    {
+        TicToc t_f;
+        vector<cv::Point2f> un_prev_pts(cur_pts.size()), un_forw_pts(cur_pts.size());
+
+        for (unsigned int i = 0; i < cur_pts.size(); i++)
+        {
+            Eigen::Vector3d tmp_p;
+            m_camera->liftProjective(Eigen::Vector2d(cur_pts[i].x, cur_pts[i].y),tmp_p); // 去畸变到相机系
+            tmp_p.x() = FOCAL_LENGTH * tmp_p.x()/tmp_p.z() + COL/2;
+            tmp_p.y() = FOCAL_LENGTH * tmp_p.y()/tmp_p.z() + ROW/2;
+            un_prev_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
+
+            m_camera->liftProjective(Eigen::Vector2d(forw_pts[i].x, forw_pts[i].y), tmp_p);
+            tmp_p.x() = FOCAL_LENGTH * tmp_p.x() / tmp_p.z() + COL / 2.0;
+            tmp_p.y() = FOCAL_LENGTH * tmp_p.y() / tmp_p.z() + ROW / 2.0;
+            un_forw_pts[i] = cv::Point2f(tmp_p.x(), tmp_p.y());
+        }
+
+        vector<uchar> status;
+        double focal = 1.0;
+        cv::Point2f pp(0,0);
+        cv::Mat E = cv::findEssentialMat(un_prev_pts, un_forw_pts, focal, pp, cv::RANSAC, 0.99, F_THRESHOLD, status );
     
+        reduceVector(prev_pts, status);
+        reduceVector(cur_pts, status);
+        reduceVector(forw_pts, status);
+        reduceVector(ids, status);
+        reduceVector(track_cnt, status);
+    }
+
 
 }
+
+
 
 void FeatureTracker::readImage(const cv::Mat &_img)
 {
@@ -132,6 +169,17 @@ void FeatureTracker::readImage(const cv::Mat &_img)
 
     if(PUB_THIS_FRAME)
     {
+        rejectWithF();
+        for(auto& n:track_cnt)
+            n++;
 
+        TicToc t_m;
+        setMask();
+        TicToc t_t;
     }
+
+
+
+    cur_pts = forw_pts;
+    cur_img = forw_img;
 }

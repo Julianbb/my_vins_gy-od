@@ -34,7 +34,17 @@ public:
 
 	void addPoints();
     
+	void ExtractEdgeFeature(std::vector<cv::Point2f> & total_pts,int NeedNum);
 
+	bool updateID(unsigned int i);
+
+	void readIntrinsicParameter(const string &calib_file);
+
+	void showUndistortion(const string &name);
+
+	void rejectWithF();
+
+	vector<cv::Point2f> undistortedPoints();
 
     cv::Mat mask; 
     cv::Mat fisheye_mask;
