@@ -10,3 +10,5 @@ std::string FISHEYE_MASK;
 bool PUB_THIS_FRAME;
 double FOCAL_LENGTH;
 double F_THRESHOLD;
+int MAX_CNT; //
+int MIN_DIST;

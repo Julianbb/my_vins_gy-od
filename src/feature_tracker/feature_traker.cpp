@@ -72,6 +72,33 @@ void FeatureTracker::setMask()
 
 }
 
+void FeatureTracker::ExtractEdgeFeature(std::vector<cv::Point2f>& total_pts, int NeedNum)
+{
+    cv::Mat cur_Mask = mask.clone();
+    cv::Mat img = forw_img.clone();
+    cv::Mat gradx = cv::Mat::zeros( forw_img.rows, forw_img.cols, CV_32F);
+    cv::Mat grady = cv::Mat::zeros(forw_img.rows, forw_img.cols, CV_32F);
+    cv::Mat mag =  cv::Mat::zeros(forw_img.rows, forw_img.cols, CV_32F);
+
+
+    cv::GaussianBlur( forw_img, img, cv::Size( 3, 3 ), 0, 0 );//高斯滤波器（GaussianFilter）对图像进行平滑处理。
+    cv::Scharr(img, gradx, CV_32F, 1, 0, 1/32.0);//边缘检测
+    cv::Scharr(img, grady, CV_32F, 0, 1, 1/32.0);
+    cv::magnitude(gradx,grady,mag);//突出了边缘
+
+    cv::Mat canny;
+    cv::Canny(img , canny , 30, 50);
+
+    if(total_pts.size() != 0)
+    {
+        for(int k = 0; k < (int)total_pts.size(); ++k)
+        {
+            cv::circle(cur_Mask, cv::Point(total_pts[k].x, total_pts[k].y), MIN_DIST, 0, -1);
+        }
+    }
+
+
+}
 
 void FeatureTracker::rejectWithF()
 {
@@ -80,6 +107,7 @@ void FeatureTracker::rejectWithF()
         TicToc t_f;
         vector<cv::Point2f> un_prev_pts(cur_pts.size()), un_forw_pts(cur_pts.size());
 
+        // 去畸变
         for (unsigned int i = 0; i < cur_pts.size(); i++)
         {
             Eigen::Vector3d tmp_p;
@@ -176,6 +204,23 @@ void FeatureTracker::readImage(const cv::Mat &_img)
         TicToc t_m;
         setMask();
         TicToc t_t;
+
+        int n_max_cnt =  MAX_CNT - static_cast<int>(forw_pts.size());
+        if(n_max_cnt>0)
+        {
+            if(mask.empty())
+                cout << "mask is empty " << endl;
+            if (mask.type() != CV_8UC1)
+                cout << "mask type wrong " << endl;
+            if (mask.size() != forw_img.size())
+                cout << "wrong size " << endl;
+
+            cv::goodFeaturesToTrack(forw_img, n_pts, n_max_cnt/2, 0.01, MIN_DIST, mask);
+            int edgepoint = n_max_cnt -n_pts.size(); // 剩下用边提取点
+            ExtractEdgeFeature(n_pts,edgepoint);
+        }
+        else
+            n_pts.clear();
     }
 
 
