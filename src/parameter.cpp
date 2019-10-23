@@ -1,5 +1,11 @@
 #include "parameter.h"
 
+
+
+
+double MIN_PARALLAX;
+
+
 //feature tracker section
 int ROW;
 int COL;

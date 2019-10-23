@@ -2,6 +2,11 @@
 #include <string>
 
 
+
+const int WINDOW_SIZE = 10;
+extern double MIN_PARALLAX;
+
+
 //feature tracker section
 extern int ROW;
 extern int COL;
