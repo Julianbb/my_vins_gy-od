@@ -229,7 +229,58 @@ VectorXd FeatureManager::getDepthVector()
 
 void FeatureManager::triangulate(Vector3d Ps[], Vector3d toc, Matrix3d roc)
 {
+    int triangulatetime  = 0; 
+    for(auto& it_per_id: feature)
+    {
+        it_per_id.used_num = it_per_id.feature_per_frame.size();
+        if(it_per_id.used_num < 2 || it_per_id.start_frame >= WINDOW_SIZE-2)
+            continue;
 
+        if(it_per_id.estimated_depth > 0)
+        {
+            triangulatetime++;
+            continue;
+        }
+
+
+        int imu_i = it_per_id.start_frame, imu_j = imu_i-1;
+        Eigen::MatrixXd svd_A(2*it_per_id.feature_per_frame.size(), 4);
+        int svd_idx = 0;
+
+        Eigen::Vector3d t0 = Ps[imu_i] + Rs[imu_i]*toc;
+        Eigen::Matrix3d R0 = Rs[imu_i] * roc;
+
+        for(auto& it_per_frame: it_per_id.feature_per_frame)
+        {
+            imu_j++;
+            Eigen::Vector3d t1 = Ps[imu_j] + Rs[imu_j]*toc;
+            Eigen::Matrix3d R1 = Rs[imu_j]*roc;
+
+            Eigen::Vector3d t = R0.transpose()*(t1-t0);
+            Eigen::Matrix3d R = R0.transpose()* R1;
+            Eigen::Matrix<double,3,4> P;
+            P.leftCols<3>() = R.transpose(); 
+            P.rightCols<1>() = -R.transpose()*t;
+
+  
+            Eigen::Vector3d f = it_per_frame.point.normalized();
+            svd_A.row(svd_idx++) = f[0]*P.row(2) - f[2]*P.row(0);
+            svd_A.row(svd_idx++) = f[1]*P.row(2) - f[2]*P.row(1);
+            
+        }
+
+        assert(svd_idx == svd_A.rows());
+        Eigen::JacobiSVD<Eigen::MatrixXd> svd(svd_A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+        if(svd.singularValues().maxCoeff() / svd.singularValues().minCoeff() > triangulate_threshold) continue;
+
+        Eigen::Vector4d svd_V = svd.matrixV().rightCols<1>();
+
+        double svd_method = svd_V[2] / svd_V[3] ;
+        if(svd_method < 0.1) continue;
+
+        it_per_id.estimated_depth = svd_method;
+        triangulatetime++;
+    }
 
 
 }
@@ -248,9 +299,37 @@ void FeatureManager::removeOutlier()
     }
 }
 
+
+
 void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3d marg_P, Eigen::Matrix3d new_R, Eigen::Vector3d new_P)
 {
+    for(auto it = feature.begin(), it_next = feature.begin(); it != feature.end(); it = it_next)
+    {
+        it_next++;
 
+        if(it->start_frame != 0)
+            it->start_frame--;
+
+        else
+        {
+            Eigen::Vector3d uv_i = it->feature_per_frame[0].point;
+            it->feature_per_frame.erase(it->feature_per_frame.begin());
+
+            if(it->feature_per_frame.size() <2)
+            {
+                feature.erase(it);
+                continue;
+            }
+
+            Eigen::Vector3d pts_i = uv_i*it->estimated_depth;
+            Eigen::Vector3d w_pts_i = marg_R * pts_i + marg_P;
+            Eigen::Vector3d pts_j = new_R.transpose() *(w_pts_i - new_P);
+            double dep_j = pts_j(2);
+            if(dep_j > 0)
+                it->estimated_depth = dep_j;
+
+        }
+    }
 
 
 }
@@ -258,7 +337,22 @@ void FeatureManager::removeBackShiftDepth(Eigen::Matrix3d marg_R, Eigen::Vector3
 
 void FeatureManager::removeFront(int frame_count)
 {
+    for (auto it = feature.begin(), it_next = feature.begin(); it != feature.end(); it = it_next)
+    {
+        it_next++;
 
+        if (it->start_frame == frame_count)
+        {
+            it->start_frame--;
+        }
+        else
+        {
+            int j = WINDOW_SIZE - 1 - it->start_frame;
+            it->feature_per_frame.erase(it->feature_per_frame.begin() + j);
+            if (it->feature_per_frame.size() == 0)
+                feature.erase(it);
+        }
+    }
 }
 
 

@@ -29,8 +29,10 @@ include_directories(
 add_executable(vins_estimator
         src/estimator_node.cpp
 		src/parameter.cpp
+        src/feature_manager.cpp
         
         src/feature_tracker/feature_tracker.cpp
+        
 
         camera_model/src/chessboard/Chessboard.cc
 		camera_model/src/calib/CameraCalibration.cc
